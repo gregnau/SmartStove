@@ -8,21 +8,23 @@
  * GregNau © 2016-2020
  */
 
-// Configuration
-// #define   HOSTNAME      "eetkamer-kachel"
-#define   HOSTNAME      "woonkamer-kachel"
-#define   MYWIFI        "Bennekom58"
-#define   MYPASS        "kIfudood4Frr"
-// #define   BLYNK_AUTH    "cd6baccbedca4894b7a765c1704f10de" // EETKAMER
-#define   BLYNK_AUTH    "tl_Yu0HMzdyPShmhkeqq8Iip8dnds1zl" // WOONKAMER
-#define   THERMO_PIN    A0
-#define   LOW_PIN       5  // GPIO 5 = D1
-#define   HIGH_PIN      4  // GPIO 4 = D2
-#define   DHT_PIN       14  // GPIO 14 = D5
-#define   BTN_PIN       12  // GPIO 12 = D6
-#define   FLAME_PIN     13  // GPIO 13 = D7
-#define   DEBUG         true
-#define   DEBUG_BPS     115200
+// Software configuration
+// #define HOSTNAME    "eetkamer-kachel"
+#define HOSTNAME    "woonkamer-kachel"
+#define MYWIFI      "Bennekom58"
+#define MYPASS      "kIfudood4Frr"
+// #define BLYNK_AUTH  "cd6baccbedca4894b7a765c1704f10de" // EETKAMER
+#define BLYNK_AUTH  "tl_Yu0HMzdyPShmhkeqq8Iip8dnds1zl" // WOONKAMER
+#define DEBUG       true
+#define DEBUG_BPS   115200
+
+// Pins configuration (do not change, this the only usable config)
+#define THERMO_PIN  A0
+#define LOW_PIN      5  // GPIO  5 = D1
+#define HIGH_PIN     4  // GPIO  4 = D2
+#define DHT_PIN     14  // GPIO 14 = D5
+#define BTN_PIN     12  // GPIO 12 = D6
+#define FLAME_PIN   13  // GPIO 13 = D7
 
 // Select Blynk debug output
 #if DEBUG
@@ -30,51 +32,51 @@
 #endif
 
 // Include libraries
-#include <avr/pgmspace.h>
-#include <Arduino.h>
-#include <NTPClient.h>
+#include <avr/pgmspace.h>  // Needed to store vars in program memory
+#include <Arduino.h>  // Just in case
+// #include <NTPClient.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
-#include <ArduinoOTA.h>
+#include <ArduinoOTA.h>  // Enables wireless firmware upload
 #include <BlynkSimpleEsp8266.h>
 
 // Initialize library instances
 BlynkTimer timer;
-IRrecv ir(IR_PIN);
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 7200, 60000);
+// WiFiUDP ntpUDP;
+// NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 7200, 60000);
 
 // Heater queue action identifiers
-static const byte QUEUE_LOW  PROGMEM = 0x02  // B00000010
-static const byte QUEUE_HIGH PROGMEM = 0x05  // B00000101
-
-// Raw IR button codes
-static const unsigned int IR_BTN_PWR[]   PROGMEM = { 9050, 4500, 600, 500, 600, 550, 600, 550, 600, 500, 600, 550, 600, 550, 550, 550, 600, 550, 600, 1650, 600, 1700, 550, 1700, 550, 1700, 600, 1700, 550, 1700, 550, 1700, 600, 1650, 600, 550, 600, 500, 600, 1700, 600, 500, 600, 550, 600, 550, 600, 1650, 600, 1650, 600, 1650, 600, 1700, 550, 550, 600, 1700, 550, 1700, 600, 1650, 600, 550, 550, 600, 550};  // Protocol=NEC Data=0xFF23DC
-static const unsigned int IR_BTN_FLAME[] PROGMEM = { 9050, 4500, 600, 550, 600, 550, 550, 550, 600, 550, 550, 600, 550, 550, 600, 550, 550, 600, 550, 1700, 550, 1700, 600, 1650, 600, 1650, 600, 1700, 600, 1650, 600, 1650, 600, 1650, 600, 1700, 600, 500, 600, 550, 600, 550, 550, 550, 600, 550, 600, 1650, 600, 1700, 550, 550, 600, 1700, 550, 1700, 550, 1700, 600, 1650, 600, 1650, 600, 550, 600, 550, 600};  // Protocol=NEC Data=0xFF837C
-static const unsigned int IR_BTN_LOW[]   PROGMEM = { 9100, 4500, 600, 550, 550, 550, 600, 550, 600, 550, 550, 550, 600, 550, 550, 600, 550, 550, 600, 1700, 550, 1700, 550, 1700, 600, 1650, 600, 1650, 600, 1700, 600, 1650, 600, 1650, 600, 1700, 600, 500, 600, 550, 600, 1650, 600, 550, 600, 500, 600, 1700, 550, 1700, 600, 550, 550, 1700, 600, 1650, 600, 550, 550, 1700, 600, 1700, 550, 550, 600, 550, 550};  // Protocol=NEC Data=0xFF936C
-static const unsigned int IR_BTN_HIGH[]  PROGMEM = { 9050, 4550, 550, 550, 600, 550, 550, 600, 550, 550, 600, 550, 550, 550, 600, 550, 600, 550, 550, 1700, 600, 1650, 600, 1650, 600, 1700, 600, 1650, 600, 1650, 600, 1650, 600, 1700, 600, 500, 600, 550, 600, 550, 550, 1700, 600, 550, 550, 550, 600, 1700, 550, 1700, 600, 1650, 600, 1700, 550, 1700, 550, 600, 550, 1700, 550, 1700, 600, 550, 550, 550, 600};  // Protocol=NEC Data=0xFF13EC
+static const uint8_t QUEUE_LOW  PROGMEM = 0x02  // B00000010
+static const uint8_t QUEUE_HIGH PROGMEM = 0x05  // B00000101
 
 // Blynk default colors
-static const char BLYNK_WHITE[]  PROGMEM = "#FFFFFF";
-static const char BLYNK_GREY[]   PROGMEM = "#444444";
-static const char BLYNK_GREEN[]  PROGMEM = "#23C48E";
-static const char BLYNK_BLUE[]   PROGMEM = "#04C0F8";
-static const char BLYNK_YELLOW[] PROGMEM = "#ED9D00";
-static const char BLYNK_RED[]    PROGMEM = "#D3435C";
-static const char BLYNK_PURPLE[] PROGMEM = "#5F7CD8";
-static const char BLYNK_BLACK[]  PROGMEM = "#000000";
+static const int8_t BLYNK_WHITE[]  PROGMEM = "#FFFFFF";
+static const int8_t BLYNK_GREY[]   PROGMEM = "#444444";
+static const int8_t BLYNK_GREEN[]  PROGMEM = "#23C48E";
+static const int8_t BLYNK_BLUE[]   PROGMEM = "#04C0F8";
+static const int8_t BLYNK_YELLOW[] PROGMEM = "#ED9D00";
+static const int8_t BLYNK_RED[]    PROGMEM = "#D3435C";
+static const int8_t BLYNK_PURPLE[] PROGMEM = "#5F7CD8";
+static const int8_t BLYNK_BLACK[]  PROGMEM = "#000000";
 
 // Global variables
-char heater_queue;
-boolean is_first_connect = true;
-int humidity, temperature, thermo_knob_last, thermostate_temp;
-boolean fan, flame, heating_low, heating_high, thermostate_active;
-
+int8_t heater_queue;
+bool fan,
+     flame,
+     heating_low,
+     heating_high,
+     is_first_connect,
+     thermostate_active;
+int16_t humidity,
+        temperature,
+        thermo_knob_last,
+        thermostate_temp;
+uint32_t thermostate_last_temp
 
 void switchFanOn() { switchFan(true); }
 void switchFanOff() { switchFan(false); }
-void switchFlameOn() { switchFlame(true); }
+void switschFlameOn() { switchFlame(true); }
 void switchFlameOff() { switchFlame(false); }
 void switchLowOn() { switchLow(true); }
 void switchLowOff() { switchLow(false); }
@@ -83,12 +85,12 @@ void switchHighOff() { switchHigh(false); }
 
 void lockHeaterQueue() {
   // Lock execution of queue, by changing MSB to 1 (negative)
-  heater_queue = heater_queue | 0x80;  // 0x80 = B10000000
+  heater_queue = heater_queue | 0x80;  // 0x80 = 1B0000000
 }
 
 void unlockHeaterQueue() {
   // Unlock execution of queue, by changing MSB to 0 (positive)
-  heater_queue = heater_queue & 0x7F;  // 0x7F = B01111111
+  heater_queue = heater_queue & 0x7F;  // 0x7F = 0B1111111
 
   // Shift current action bits out from queue
   heater_queue = heater_queue >> 4;
@@ -116,7 +118,7 @@ void processHeaterQueue() {
   }
 }
 
-void addHeaterQueue(byte heater_state) {
+void addHeaterQueue(uint8_theater_state) {
   // When queue busy, prepare to add the action to next queue position
   if (heater_queue < 0) heater_state = heater_state << 4;
 
@@ -124,31 +126,21 @@ void addHeaterQueue(byte heater_state) {
   heater_queue = (heater_queue & 0x8F) | heater_state;  // 0x8F = 10001111
 }
 
-void switchFlame(boolean flame_state) {
-  if (flame_state) {
-    digitalWrite(FLAME_PIN, HIGH);
-    flame = true;
-  }
-  else {
-    digitalWrite(FLAME_PIN, LOW);
-    flame = false;
-  }
+void switchFlame(bool fl) {
+  digitalWrite(FLAME_PIN, fl);
+  flame = fl;
+
   BLYNK_LOG(PSTR("Flame is switched") + flame ? "on" : "off");
 }
 
-void switchFan(boolean fan_state) {
-  if (fan_state) {
-    digitalWrite(FAN_PIN, HIGH);
-    fan = true;
-  }
-  else {
-    digitalWrite(FAN_PIN, LOW);
-    fan = false;
-  }
-  BLYNK_LOG(PSTR("Fan is switched") + flame ? "on" : "off");
+void switchFan(bool fs) {
+  digitalWrite(FAN_PIN, fs);
+  fan = fs;
+
+  BLYNK_LOG(PSTR("Fan is switched") + fs ? "on" : "off");
 }
 
-void switchLow(boolean low_state) {
+void switchLow(bool low_state) {
   if (low_state) {
     if (heating_high) {
       switchHigh(false);
@@ -172,7 +164,7 @@ void switchLow(boolean low_state) {
   }
 }
 
-void switchHigh(boolean high_state) {
+void switchHigh(bool high_state) {
   if (high_state) {
     if (heating_low) {
       digitalWrite(HIGH_PIN, HIGH);
@@ -191,7 +183,7 @@ void switchHigh(boolean high_state) {
   }
 }
 
-void switchThermostate(boolean thermo_state) {
+void switchThermostate(bool thermo_state) {
   thermostate_active = thermo_state;
   uiSwitchColors(thermo_state ? true : false);
   
@@ -228,17 +220,17 @@ void thermostate() {
 }
 
 void buttonTimer() {
-  boolean btn1_state = digitalRead(BTN1_PIN);
+  bool btn1_state = digitalRead(BTN1_PIN);
   if (!btn1_state) switchFlame(!flame_state);
 
-  boolean btn2_state = digitalRead(BTN2_PIN);
+  bool btn2_state = digitalRead(BTN2_PIN);
   if (!btn2_state) {
     if (heating_high) switchHighOff();
     else if (heating_low) switchHighOn();
     else switchLowOn();
   }
 
-  int thermo_knob = analogRead(BTN_PIN);
+  int16_t thermo_knob = analogRead(BTN_PIN);
   if (thermo_knob != thermo_knob_last) {
 
     timer.setTimeout(15000L, switchHighOff);
@@ -281,7 +273,7 @@ void checkConn() {
   }
 }
 
-void uiSwitchColors(boolean enabled) {
+void uiSwitchColors(bool enabled) {
   if (enabled) {
     Blynk.setProperty(V4, "color", FPSTR(BLYNK_YELLOW));
     Blynk.setProperty(V5, "color", FPSTR(BLYNK_YELLOW));
@@ -300,10 +292,10 @@ void uiSwitchColors(boolean enabled) {
 
 void readDHT() {
   // Init buffer variables to receive data
-  byte bits[5];
-  byte idx = 0;
-  byte mask = 128;
-  unsigned int loop_cnt = F_CPU / 40000;
+  uint8_t bits[5];
+  uint8_t idx = 0;
+  uint8_t mask = 128;
+  uint16_t loop_cnt = F_CPU / 40000;
 
   // Request a sample
   pinMode(DHT_PIN, OUTPUT);
@@ -330,7 +322,7 @@ void readDHT() {
   }
 
   // Read the output - 40 bits => 5 bytes
-  for (byte i=40; i!=0; i--) {
+  for (uint8_t i=40; i!=0; i--) {
     loop_cnt = F_CPU / 40000;
     while(!digitalRead(DHT_PIN)) {
       if (--loop_cnt == 0) {
@@ -363,7 +355,7 @@ void readDHT() {
   digitalWrite(DHT_PIN, HIGH);
 
   // Test checksum
-  byte sum = bits[0] + bits[1] + bits[2] + bits[3];
+  uint8_t sum = bits[0] + bits[1] + bits[2] + bits[3];
   if (bits[4] == sum) {
     humidity = word(bits[0], bits[1]);
     temperature = (bits[2] & 0x80 ? (word(bits[2] & 0x7F, bits[3]) * -1) : word(bits[2] & 0x7F, bits[3]));
@@ -384,19 +376,21 @@ void mainTimer() {
 
   checkConn();
 
-  timeClient.update();
+  // timeClient.update();
 }
 
 
 void setup() {
   #if DEBUG
+    #ifndef DEBUG_BPS
+      #define DEBUG_BPS 115200
+    #endif
     Serial.begin(DEBUG_BPS);
     Serial.println();
     BLYNK_LOG(PSTR("Serial debug activated"));
   #endif
   
-  pinMode(BTN1_PIN, INPUT_PULLUP);
-  pinMode(BTN2_PIN, INPUT_PULLUP);
+  pinMode(BTN_PIN, INPUT_PULLUP);
   pinMode(THERMO_PIN, INPUT);
   pinMode(FAN_PIN, OUTPUT);
   pinMode(FLAME_PIN, OUTPUT);
@@ -410,30 +404,30 @@ void setup() {
   ArduinoOTA.setHostname(HOSTNAME);
   ArduinoOTA.begin();
   BLYNK_LOG(PSTR("Wireless OTA update initialized"));
-  
+
   mainTimer();
   timer.setInterval(60000L, mainTimer);
   BLYNK_LOG(PSTR("Main timer launched"));
 
-  buttonTimer();
-  timer.setInterval(100, buttonTimer);
-  BLYNK_LOG(PSTR("Button timer launched"));
+  // buttonTimer();
+  // timer.setInterval(100, buttonTimer);
+  // BLYNK_LOG(PSTR("Button timer launched"));
 
-  thermoTimer();
-  timer.setInterval(1500, thermoTimer);
-  BLYNK_LOG(PSTR("Thermostate-knob timer launched"));
+  // thermoTimer();
+  // timer.setInterval(3000, thermoTimer);
+  // BLYNK_LOG(PSTR("Thermostate-knob timer launched"));
 
-  timeClient.begin();
+  // timeClient.begin();
 }
 
 
 BLYNK_CONNECTED() {
   BLYNK_LOG(PSTR("Connection alive"));
 
-   if (is_first_connect) {
-     Blynk.syncAll();  // this sets everything regard the server (i.p. remote)
-     is_first_connect = false;  // reset the flag, to avoid flood
-     BLYNK_LOG(PSTR("Synced with Blynk-server"));
+  if (is_first_connect) {
+    Blynk.syncAll();  // this sets everything regard the server (i.p. remote)
+    is_first_connect = false;  // reset the flag, to avoid flood
+    BLYNK_LOG(PSTR("Synced with Blynk-server"));
    }
 }
 
@@ -462,9 +456,36 @@ BLYNK_WRITE(V9) {
   switchThermostate(param.asInt());
 }
 
+void setThermostateTemp(int16_t tt) {
+  if (thermostate_temp_timer) {
+    timer.restartTimer(thermostate_temp_timer);
+  }
+  else {
+    thermostate_temp_timer = timer.setTimeout(3000, storeThermostateTemp);
+  }
+
+void storeThermostateTemp() {
+  thermostate_temp = thermo_knob_last
+}
+
+  thermostate_temp = tt;
+  thermostate_last_temp = millis();
+}
+
+void processThermostateTemp() {
+  if ((uint16_t)(millis() - thermostate_last_temp) >= 3000) {
+    thermostate_temp = 
+
+  }
+}
+
 // THERMOSTATE TEMPERATURE input
 BLYNK_WRITE(V5) {
+  check if 
+  timer.setInterval(100, buttonTimer);
   thermostate_temp = param.asInt() * 10;
+
+
   BLYNK_LOG("Temperature is set to %d°C", thermostate_temp / 10);
   
   if (thermostate_active) thermostate();
@@ -473,15 +494,12 @@ BLYNK_WRITE(V5) {
 // TIMER widget
 BLYNK_WRITE(V4) {}
 
-// ██       ██████   ██████  ██████
-// ██      ██    ██ ██    ██ ██   ██
-// ██      ██    ██ ██    ██ ██████
-// ██      ██    ██ ██    ██ ██
-// ███████  ██████   ██████  ██
-
 void loop() {
-  Blynk.run();
+  if (Blynk.connected) Blynk.run();
+  else // try to reconnect every nth second
+  
   processHeaterQueue();
   timer.run();
-  ArduinoOTA.handle();
+  
+  if (wifi is connected) ArduinoOTA.handle();
 }
