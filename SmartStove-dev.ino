@@ -33,13 +33,13 @@
 
 // Include libraries
 #include <avr/pgmspace.h>  // Needed to store vars in program memory
-#include <Arduino.h>  // Just in case
-// #include <NTPClient.h>
+#include <Arduino.h>  // Just in case, idk
+// #include <NTPClient.h>  // Network time synchronization client
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>  // Enables wireless firmware upload
-#include <BlynkSimpleEsp8266.h>
+#include <WiFiUdp.h>  // Needed for wireless firmware upload
+#include <ArduinoOTA.h>  // Enables wireless firmware update
+#include <BlynkSimpleEsp8266.h>  // Blynk Library
 
 // Initialize library instances
 BlynkTimer timer;
@@ -72,7 +72,7 @@ int16_t humidity,
         temperature,
         thermo_knob_last,
         thermostate_temp;
-uint32_t thermostate_last_temp
+uint32_t thermostate_last_temp;
 
 void switchFanOn() { switchFan(true); }
 void switchFanOff() { switchFan(false); }
@@ -219,25 +219,22 @@ void thermostate() {
   }
 }
 
-void buttonTimer() {
-  bool btn1_state = digitalRead(BTN1_PIN);
-  if (!btn1_state) switchFlame(!flame_state);
-
-  bool btn2_state = digitalRead(BTN2_PIN);
-  if (!btn2_state) {
-    if (heating_high) switchHighOff();
-    else if (heating_low) switchHighOn();
-    else switchLowOn();
+void setThermostateTemp(int16_t tt) {
+  thermo_knob_last = tt;
+  if (thermostate_temp_timer > 0) {
+    timer.restartTimer(thermostate_temp_timer);
   }
-
-  int16_t thermo_knob = analogRead(BTN_PIN);
-  if (thermo_knob != thermo_knob_last) {
-
-    timer.setTimeout(15000L, switchHighOff);
+  else {
+    thermostate_temp_timer = timer.setTimeout(3000, activateThermostateTemp);
   }
-  thermostate_temp = param.asInt() * 10;
-  BLYNK_LOG("Temperature is set to %d°C", thermostate_temp / 10);
-  
+}
+
+void activateThermostateTemp() {
+  thermostate_temp = thermo_knob_last;
+  BLYNK_LOG("Thermostate is set to %d°C", thermostate_temp / 10);
+
+  thermostate_temp_timer = 0;
+
   if (thermostate_active) thermostate();
 }
 
@@ -456,39 +453,9 @@ BLYNK_WRITE(V9) {
   switchThermostate(param.asInt());
 }
 
-void setThermostateTemp(int16_t tt) {
-  if (thermostate_temp_timer) {
-    timer.restartTimer(thermostate_temp_timer);
-  }
-  else {
-    thermostate_temp_timer = timer.setTimeout(3000, storeThermostateTemp);
-  }
-
-void storeThermostateTemp() {
-  thermostate_temp = thermo_knob_last
-}
-
-  thermostate_temp = tt;
-  thermostate_last_temp = millis();
-}
-
-void processThermostateTemp() {
-  if ((uint16_t)(millis() - thermostate_last_temp) >= 3000) {
-    thermostate_temp = 
-
-  }
-}
-
 // THERMOSTATE TEMPERATURE input
 BLYNK_WRITE(V5) {
-  check if 
-  timer.setInterval(100, buttonTimer);
-  thermostate_temp = param.asInt() * 10;
-
-
-  BLYNK_LOG("Temperature is set to %d°C", thermostate_temp / 10);
-  
-  if (thermostate_active) thermostate();
+  setThermostateTemp(param.asInt() * 10);
 }
 
 // TIMER widget
