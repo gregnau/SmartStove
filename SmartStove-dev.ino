@@ -14,7 +14,7 @@
 #define MYWIFI      "Bennekom58"
 #define MYPASS      "kIfudood4Frr"
 // #define BLYNK_AUTH  "cd6baccbedca4894b7a765c1704f10de" // EETKAMER
-#define BLYNK_AUTH  "tl_Yu0HMzdyPShmhkeqq8Iip8dnds1zl" // WOONKAMER
+#define BLYNK_AUTH  "hKmrHlbMu5Nd8DfERntuXnZlJ8e216He" // WOONKAMER
 #define DEBUG       true
 #define DEBUG_BPS   115200
 
@@ -24,17 +24,19 @@
 #define HIGH_PIN     4  // GPIO  4 = D2
 #define DHT_PIN     14  // GPIO 14 = D5
 #define BTN_PIN     12  // GPIO 12 = D6
-#define FLAME_PIN   13  // GPIO 13 = D7
+#define FAN_PIN     13  // GPIO 13 = D7
 
 // Select Blynk debug output
 #if DEBUG
   #define BLYNK_PRINT Serial
 #endif
 
+#define ON true
+#define OFF false
+
 // Include libraries
 #include <avr/pgmspace.h>  // Needed to store vars in program memory
-#include <Arduino.h>  // Just in case, idk
-// #include <NTPClient.h>  // Network time synchronization client
+#include <Arduino.h>  // Just in case, idk why its here
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>  // Needed for wireless firmware upload
@@ -43,45 +45,43 @@
 
 // Initialize library instances
 BlynkTimer timer;
-// WiFiUDP ntpUDP;
-// NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 7200, 60000);
 
 // Heater queue action identifiers
-static const uint8_t QUEUE_LOW  PROGMEM = 0x02  // B00000010
-static const uint8_t QUEUE_HIGH PROGMEM = 0x05  // B00000101
+static const uint8_t QUEUE_LOW  PROGMEM = 0x02;  // B00000010
+static const uint8_t QUEUE_HIGH PROGMEM = 0x05;  // B00000101
 
 // Blynk default colors
-static const int8_t BLYNK_WHITE[]  PROGMEM = "#FFFFFF";
-static const int8_t BLYNK_GREY[]   PROGMEM = "#444444";
-static const int8_t BLYNK_GREEN[]  PROGMEM = "#23C48E";
-static const int8_t BLYNK_BLUE[]   PROGMEM = "#04C0F8";
-static const int8_t BLYNK_YELLOW[] PROGMEM = "#ED9D00";
-static const int8_t BLYNK_RED[]    PROGMEM = "#D3435C";
-static const int8_t BLYNK_PURPLE[] PROGMEM = "#5F7CD8";
-static const int8_t BLYNK_BLACK[]  PROGMEM = "#000000";
+static const int8_t BLYNK_WHITE[8]  PROGMEM = "#FFFFFF";
+static const int8_t BLYNK_GREY[8]   PROGMEM = "#444444";
+static const int8_t BLYNK_GREEN[8]  PROGMEM = "#23C48E";
+static const int8_t BLYNK_BLUE[8]   PROGMEM = "#04C0F8";
+static const int8_t BLYNK_YELLOW[8] PROGMEM = "#ED9D00";
+static const int8_t BLYNK_RED[8]    PROGMEM = "#D3435C";
+static const int8_t BLYNK_PURPLE[8] PROGMEM = "#5F7CD8";
+static const int8_t BLYNK_BLACK[8]  PROGMEM = "#000000";
 
 // Global variables
 int8_t heater_queue;
-bool fan,
-     flame,
-     heating_low,
-     heating_high,
-     is_first_connect,
-     thermostate_active;
-int16_t humidity,
-        temperature,
-        thermo_knob_last,
-        thermostate_temp;
-uint32_t thermostate_last_temp;
+bool fan = false,
+     flame =false,
+     heating_low = false,
+     heating_high = false,
+     is_first_connect = true,
+     thermostate_active = false;
+int16_t humidity = 0,
+        temperature = 0,
+        thermo_knob_last = 0,
+        thermostate_temp = 0,
+        thermostate_temp_timer = 0;
 
-void switchFanOn() { switchFan(true); }
-void switchFanOff() { switchFan(false); }
-void switschFlameOn() { switchFlame(true); }
-void switchFlameOff() { switchFlame(false); }
-void switchLowOn() { switchLow(true); }
-void switchLowOff() { switchLow(false); }
-void switchHighOn() { switchHigh(true); }
-void switchHighOff() { switchHigh(false); }
+void switchFanOn() { switchFan(ON); }
+void switchFanOff() { switchFan(OFF); }
+void switschFlameOn() { switchFlame(ON); }
+void switchFlameOff() { switchFlame(OFF); }
+void switchLowOn() { switchLow(ON); }
+void switchLowOff() { switchLow(OFF); }
+void switchHighOn() { switchHigh(ON); }
+void switchHighOff() { switchHigh(OFF); }
 
 void lockHeaterQueue() {
   // Lock execution of queue, by changing MSB to 1 (negative)
@@ -99,7 +99,7 @@ void unlockHeaterQueue() {
 void processHeaterQueue() {
   // Execute current queue action...
   if (heater_queue > 0) {  // ...only when queue is not locked
-    current_action = heater_queue & 0x0F;  // 0x0F = B00001111
+    uint8_t current_action = heater_queue & 0x0F;  // 0x0F = B00001111
 
     switch (current_action) {
       case QUEUE_LOW:
@@ -118,7 +118,7 @@ void processHeaterQueue() {
   }
 }
 
-void addHeaterQueue(uint8_theater_state) {
+void addHeaterQueue(uint8_t heater_state) {
   // When queue busy, prepare to add the action to next queue position
   if (heater_queue < 0) heater_state = heater_state << 4;
 
@@ -127,7 +127,7 @@ void addHeaterQueue(uint8_theater_state) {
 }
 
 void switchFlame(bool fl) {
-  digitalWrite(FLAME_PIN, fl);
+//  digitalWrite(FLAME_PIN, fl);
   flame = fl;
 
   BLYNK_LOG(PSTR("Flame is switched") + flame ? "on" : "off");
@@ -143,7 +143,7 @@ void switchFan(bool fs) {
 void switchLow(bool low_state) {
   if (low_state) {
     if (heating_high) {
-      switchHigh(false);
+      switchHigh(OFF);
     }
     else {
       digitalWrite(LOW_PIN, HIGH);
@@ -153,7 +153,7 @@ void switchLow(bool low_state) {
   }
   else {
     if (heating_high) {
-      switchHigh(false);
+      switchHigh(OFF);
       timer.setTimeout(15000L, switchHighOff);
     }
     else {
@@ -172,7 +172,7 @@ void switchHigh(bool high_state) {
       BLYNK_LOG(PSTR("Heating high switched on"));
     }
     else {
-      switchLow(true);
+      switchLow(ON);
       timer.setTimeout(15000L, switchHighOn);
     }
   }
@@ -193,7 +193,7 @@ void switchThermostate(bool thermo_state) {
   }
   else {
     if (heating_low || heating_high) {
-      switchLow(false);
+      switchLow(OFF);
     }
     BLYNK_LOG(PSTR("Thermostate disabled"));
   }
@@ -204,17 +204,17 @@ void thermostate() {
 
   if (temp_delta >= 13) {
     Blynk.virtualWrite(V8, HIGH);
-    switchHigh(true);
+    switchHigh(ON);
     BLYNK_LOG(PSTR("Thermostate started heating high"));
   }
   else if (temp_delta >= -7) {
     Blynk.virtualWrite(V7, HIGH);
-    switchLow(true);
+    switchLow(ON);
     BLYNK_LOG(PSTR("Thermostate started heating low"));
   }
   else {
     Blynk.virtualWrite(V7, LOW);
-    switchLow(false);
+    switchLow(OFF);
     BLYNK_LOG(PSTR("Thermostate stopped heating"));
   }
 }
@@ -372,8 +372,6 @@ void mainTimer() {
   if (thermostate_active) thermostate();
 
   checkConn();
-
-  // timeClient.update();
 }
 
 
@@ -390,7 +388,7 @@ void setup() {
   pinMode(BTN_PIN, INPUT_PULLUP);
   pinMode(THERMO_PIN, INPUT);
   pinMode(FAN_PIN, OUTPUT);
-  pinMode(FLAME_PIN, OUTPUT);
+//  pinMode(FLAME_PIN, OUTPUT);
   pinMode(LOW_PIN, OUTPUT);
   pinMode(HIGH_PIN, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -413,8 +411,6 @@ void setup() {
   // thermoTimer();
   // timer.setInterval(3000, thermoTimer);
   // BLYNK_LOG(PSTR("Thermostate-knob timer launched"));
-
-  // timeClient.begin();
 }
 
 
@@ -462,11 +458,13 @@ BLYNK_WRITE(V5) {
 BLYNK_WRITE(V4) {}
 
 void loop() {
-  if (Blynk.connected) Blynk.run();
-  else // try to reconnect every nth second
+//  if (Blynk.connected()) Blynk.run();
+//  else // try to reconnect every nth second
   
   processHeaterQueue();
   timer.run();
   
-  if (wifi is connected) ArduinoOTA.handle();
+  if (WiFi.status() == WL_CONNECTED) {
+    ArduinoOTA.handle();
+  }
 }
