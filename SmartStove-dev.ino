@@ -61,7 +61,8 @@ static const int8_t BLYNK_PURPLE[8] PROGMEM = "#5F7CD8";
 static const int8_t BLYNK_BLACK[8]  PROGMEM = "#000000";
 
 // Global variables
-int8_t heater_queue;
+uint8_t heater_queue[2] = {0, 0};
+bool hq_lock = false;
 bool fan = false,
      flame =false,
      heating_low = false,
@@ -84,60 +85,56 @@ void switchHighOn() { switchHigh(ON); }
 void switchHighOff() { switchHigh(OFF); }
 
 void lockHeaterQueue() {
-  // Lock execution of queue, by changing MSB to 1 (negative)
-  heater_queue = heater_queue | 0x80;  // 0x80 = 1B0000000
+  hq_lock = true;
 }
 
 void unlockHeaterQueue() {
-  // Unlock execution of queue, by changing MSB to 0 (positive)
-  heater_queue = heater_queue & 0x7F;  // 0x7F = 0B1111111
-
-  // Shift current action bits out from queue
-  heater_queue = heater_queue >> 4;
+  hq_lock = false;
+  heater_queue[0] = heater_queue[1];
+  heater_queue[1] = 0x00;
 }
 
 void processHeaterQueue() {
   // Execute current queue action...
-  if (heater_queue > 0) {  // ...only when queue is not locked
-    uint8_t current_action = heater_queue & 0x0F;  // 0x0F = B00001111
+  if (!hq_lock) {  // ...only when queue is not locked
+    uint8_t current_action = heater_queue[0];
 
     switch (current_action) {
       case QUEUE_LOW:
         lockHeaterQueue();
-        switchLow(!heating_low);
+//        switchLow(!heating_low);
         break;
       case QUEUE_HIGH:
         lockHeaterQueue();
-        switchHigh(!heating_high);
+//        switchHigh(!heating_high);
+        break;
+      case 0:
         break;
       default:
         BLYNK_LOG(PSTR("Heater queue corrupted, clearing it"));
-        heater_queue = 0x00;
+        memset(heater_queue,0,sizeof(heater_queue));
         break;
     }
   }
 }
 
 void addHeaterQueue(uint8_t heater_state) {
-  // When queue busy, prepare to add the action to next queue position
-  if (heater_queue < 0) heater_state = heater_state << 4;
-
-  // Store the new action in queue, but don't touch anything else
-  heater_queue = (heater_queue & 0x8F) | heater_state;  // 0x8F = 10001111
+  heater_queue[hq_lock] = heater_state;
 }
 
 void switchFlame(bool fl) {
 //  digitalWrite(FLAME_PIN, fl);
   flame = fl;
+  unlockHeaterQueue();
 
-  BLYNK_LOG(PSTR("Flame is switched") + flame ? "on" : "off");
+  BLYNK_LOG("Flame is switched %s", fl ? "on" : "off");
 }
 
 void switchFan(bool fs) {
   digitalWrite(FAN_PIN, fs);
   fan = fs;
 
-  BLYNK_LOG(PSTR("Fan is switched") + fs ? "on" : "off");
+  BLYNK_LOG("Fan is switched %s", fs ? "on" : "off");
 }
 
 void switchLow(bool low_state) {
@@ -256,7 +253,7 @@ void checkConn() {
     }
 
     if (WiFi.status() == WL_CONNECTED && !Blynk.connected()) {
-      BLYNK_LOG("Not connected to Blynk Server! Connecting...");
+      BLYNK_LOG(PSTR("Not connected to Blynk Server! Connecting..."));
       Blynk.connect();  // It has 3 attempts of the defined BLYNK_TIMEOUT_MS to connect to the server, otherwise it goes to the enxt line 
       if (!Blynk.connected()) {
         BLYNK_LOG(PSTR("Connection to Blynk Server failed!"));
@@ -374,6 +371,13 @@ void mainTimer() {
   checkConn();
 }
 
+void probaTimer() {
+  Serial.print(heater_queue[0]);
+  Serial.print(", ");
+  Serial.println(heater_queue[1]);
+  Serial.flush();
+}
+
 
 void setup() {
   #if DEBUG
@@ -403,6 +407,9 @@ void setup() {
   mainTimer();
   timer.setInterval(60000L, mainTimer);
   BLYNK_LOG(PSTR("Main timer launched"));
+
+  probaTimer();
+  timer.setInterval(2000, probaTimer);
 
   // buttonTimer();
   // timer.setInterval(100, buttonTimer);
@@ -458,7 +465,7 @@ BLYNK_WRITE(V5) {
 BLYNK_WRITE(V4) {}
 
 void loop() {
-//  if (Blynk.connected()) Blynk.run();
+  if (Blynk.connected()) Blynk.run();
 //  else // try to reconnect every nth second
   
   processHeaterQueue();
