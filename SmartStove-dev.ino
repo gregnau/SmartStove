@@ -33,6 +33,8 @@
 
 #define ON true
 #define OFF false
+#define QUEUE_LOW 2
+#define QUEUE_HIGH 5
 
 // Include libraries
 #include <avr/pgmspace.h>  // Needed to store vars in program memory
@@ -45,10 +47,6 @@
 
 // Initialize library instances
 BlynkTimer timer;
-
-// Heater queue action identifiers
-static const uint8_t QUEUE_LOW  PROGMEM = 0x02;  // B00000010
-static const uint8_t QUEUE_HIGH PROGMEM = 0x05;  // B00000101
 
 // Blynk default colors
 static const int8_t BLYNK_WHITE[8]  PROGMEM = "#FFFFFF";
@@ -76,14 +74,38 @@ int16_t humidity = 0,
         thermostate_temp_timer = 0;
 
 
-void switchFanOn() { switchFan(ON); unlockHeaterQueue();}
-void switchFanOff() { switchFan(OFF); unlockHeaterQueue();}
-void switschFlameOn() { switchFlame(ON); unlockHeaterQueue();}
-void switchFlameOff() { switchFlame(OFF); unlockHeaterQueue();}
-void switchLowOn() { switchLow(ON); unlockHeaterQueue();}
-void switchLowOff() { switchLow(OFF); unlockHeaterQueue();}
-void switchHighOn() { switchHigh(ON); unlockHeaterQueue();}
-void switchHighOff() { switchHigh(OFF); unlockHeaterQueue();}
+void timeFanOn() {
+  switchFan(ON);
+  unlockHeaterQueue();
+}
+void timeFanOff() {
+  switchFan(OFF);
+  unlockHeaterQueue();
+}
+void switchLowOn() {
+  digitalWrite(LOW_PIN, HIGH);
+  heating_low = true;
+  BLYNK_LOG(PSTR("Heating low switched on"));
+}
+void switchLowOff() {
+  digitalWrite(LOW_PIN, LOW);
+  heating_low = false;
+  BLYNK_LOG(PSTR("Heating low switched off"));
+}
+void timeLowOn() {
+  digitalWrite(LOW_PIN, HIGH);
+  heating_low = true;
+  unlockHeaterQueue();
+  BLYNK_LOG(PSTR("Heating low switched on"));
+}
+void timeLowOff() {
+  digitalWrite(LOW_PIN, LOW);
+  heating_low = false;
+  unlockHeaterQueue();
+  BLYNK_LOG(PSTR("Heating low switched off"));
+}
+void switchHighOn() { digitalWrite(HIGH_PIN, HIGH); unlockHeaterQueue(); }
+void switchHighOff() { digitalWrite(HIGH_PIN, LOW); unlockHeaterQueue(); }
 
 void lockHeaterQueue() {
   hq_lock = true;
@@ -139,23 +161,13 @@ void switchFan(bool fs) {
 }
 
 void switchLow(bool ls) {
-  if (ls) {
+  if (ls) {  // switch ON
     switchFan(ON);
-    timer.setTimeout(15000, switchLowOn);
-    digitalWrite(LOW_PIN, HIGH);
-    heating_low = true;
-    BLYNK_LOG(PSTR("Heating low switched on"));
+    timer.setTimeout(10000, timeLowOn);
   }
-  else {
-    if (heating_high) {
-      switchHigh(OFF);
-      timer.setTimeout(15000, switchHighOff);
-    }
-    else {
-      digitalWrite(LOW_PIN, LOW);
-      heating_low = false;
-      BLYNK_LOG(PSTR("Heating low switched off"));
-    }
+  else {  // switch OFF
+    switchLowOff();
+    timer.setTimeout(40000, timeFanOff);
   }
 }
 
