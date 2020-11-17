@@ -62,9 +62,9 @@ static const int8_t BLYNK_BLACK[8]  PROGMEM = "#000000";
 
 // Global variables
 uint8_t heater_queue[2] = {0, 0};
-bool hq_lock = false;
 bool fan = false,
-     flame =false,
+     flame = false,
+     hq_lock = false,
      heating_low = false,
      heating_high = false,
      is_first_connect = true,
@@ -75,14 +75,15 @@ int16_t humidity = 0,
         thermostate_temp = 0,
         thermostate_temp_timer = 0;
 
-void switchFanOn() { switchFan(ON); }
-void switchFanOff() { switchFan(OFF); }
-void switschFlameOn() { switchFlame(ON); }
-void switchFlameOff() { switchFlame(OFF); }
-void switchLowOn() { switchLow(ON); }
-void switchLowOff() { switchLow(OFF); }
-void switchHighOn() { switchHigh(ON); }
-void switchHighOff() { switchHigh(OFF); }
+
+void switchFanOn() { switchFan(ON); unlockHeaterQueue();}
+void switchFanOff() { switchFan(OFF); unlockHeaterQueue();}
+void switschFlameOn() { switchFlame(ON); unlockHeaterQueue();}
+void switchFlameOff() { switchFlame(OFF); unlockHeaterQueue();}
+void switchLowOn() { switchLow(ON); unlockHeaterQueue();}
+void switchLowOff() { switchLow(OFF); unlockHeaterQueue();}
+void switchHighOn() { switchHigh(ON); unlockHeaterQueue();}
+void switchHighOff() { switchHigh(OFF); unlockHeaterQueue();}
 
 void lockHeaterQueue() {
   hq_lock = true;
@@ -96,36 +97,36 @@ void unlockHeaterQueue() {
 
 void processHeaterQueue() {
   // Execute current queue action...
-  if (!hq_lock) {  // ...only when queue is not locked
-    uint8_t current_action = heater_queue[0];
-
-    switch (current_action) {
-      case QUEUE_LOW:
-        lockHeaterQueue();
-//        switchLow(!heating_low);
-        break;
-      case QUEUE_HIGH:
-        lockHeaterQueue();
-//        switchHigh(!heating_high);
-        break;
-      case 0:
-        break;
-      default:
-        BLYNK_LOG(PSTR("Heater queue corrupted, clearing it"));
-        memset(heater_queue,0,sizeof(heater_queue));
-        break;
+  if (heater_queue[0]) {
+    if (!hq_lock) {  // ...only when queue is not locked
+      uint8_t current_action = heater_queue[0];
+  
+      switch (current_action) {
+        case QUEUE_LOW:
+          lockHeaterQueue();
+          switchLow(!heating_low);
+          break;
+        case QUEUE_HIGH:
+          lockHeaterQueue();
+          switchHigh(!heating_high);
+          break;
+        default:
+          BLYNK_LOG(PSTR("Heater queue corrupted, clearing it"));
+          memset(heater_queue,0,sizeof(heater_queue));
+//          heater_queue[0,1] = { 0 };
+          break;
+      }
     }
   }
 }
 
-void addHeaterQueue(uint8_t heater_state) {
-  heater_queue[hq_lock] = heater_state;
+void addHeaterQueue(uint8_t hs) {
+  heater_queue[hq_lock] = hs;
 }
 
 void switchFlame(bool fl) {
 //  digitalWrite(FLAME_PIN, fl);
   flame = fl;
-  unlockHeaterQueue();
 
   BLYNK_LOG("Flame is switched %s", fl ? "on" : "off");
 }
@@ -137,21 +138,18 @@ void switchFan(bool fs) {
   BLYNK_LOG("Fan is switched %s", fs ? "on" : "off");
 }
 
-void switchLow(bool low_state) {
-  if (low_state) {
-    if (heating_high) {
-      switchHigh(OFF);
-    }
-    else {
-      digitalWrite(LOW_PIN, HIGH);
-      heating_low = true;
-      BLYNK_LOG(PSTR("Heating low switched on"));
-    }
+void switchLow(bool ls) {
+  if (ls) {
+    switchFan(ON);
+    timer.setTimeout(15000, switchLowOn);
+    digitalWrite(LOW_PIN, HIGH);
+    heating_low = true;
+    BLYNK_LOG(PSTR("Heating low switched on"));
   }
   else {
     if (heating_high) {
       switchHigh(OFF);
-      timer.setTimeout(15000L, switchHighOff);
+      timer.setTimeout(15000, switchHighOff);
     }
     else {
       digitalWrite(LOW_PIN, LOW);
