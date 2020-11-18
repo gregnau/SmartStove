@@ -261,19 +261,29 @@ void switchThermostate(bool thermo_state) {
 }
 
 void thermostate() {
-  int8_t temp_delta = thermostate_temp - temperature;
-
-  if (temp_delta >= 13) {
-    Blynk.virtualWrite(V8, HIGH);
-    addHeaterQueue(QUEUE_HIGH_ON);
-    BLYNK_LOG(PSTR("Thermostate started heating high"));
-  }
-  else if (temp_delta >= -7) {
+//  int16_t temp_delta = thermostate_temp - temperature;
+//
+//  if (temp_delta >= 13) {
+//    Blynk.virtualWrite(V8, HIGH);
+//    addHeaterQueue(QUEUE_HIGH_ON);
+//    BLYNK_LOG(PSTR("Thermostate started heating high"));
+//  }
+//  else if (temp_delta >= -7) {
+//    Blynk.virtualWrite(V7, HIGH);
+//    addHeaterQueue(QUEUE_LOW_ON);
+//    BLYNK_LOG(PSTR("Thermostate started heating low"));
+//  }
+//  else {
+//    Blynk.virtualWrite(V7, LOW);
+//    addHeaterQueue(QUEUE_LOW_OFF);
+//    BLYNK_LOG(PSTR("Thermostate stopped heating"));
+//  }
+  if (temperature <= (thermostate_temp + 2) && !heating_low) {
     Blynk.virtualWrite(V7, HIGH);
     addHeaterQueue(QUEUE_LOW_ON);
-    BLYNK_LOG(PSTR("Thermostate started heating low"));
+    BLYNK_LOG(PSTR("Thermostate started heating"));
   }
-  else {
+  else if (temperature >= (thermostate_temp + 8) && heating_low) {
     Blynk.virtualWrite(V7, LOW);
     addHeaterQueue(QUEUE_LOW_OFF);
     BLYNK_LOG(PSTR("Thermostate stopped heating"));
