@@ -26,6 +26,7 @@
 #define BTN_PIN     12  // GPIO 12 = D6
 #define FAN_PIN     13  // GPIO 13 = D7
 
+
 // Select Blynk debug output
 #if DEBUG
   #define BLYNK_PRINT Serial
@@ -33,8 +34,10 @@
 
 #define ON true
 #define OFF false
-#define QUEUE_LOW 2
-#define QUEUE_HIGH 5
+#define QUEUE_LOW_ON  8
+#define QUEUE_LOW_OFF 16
+#define QUEUE_HIGH_ON 32
+#define QUEUE_HIGH_OFF  64
 
 // Include libraries
 #include <avr/pgmspace.h>  // Needed to store vars in program memory
@@ -78,34 +81,63 @@ void timeFanOn() {
   switchFan(ON);
   unlockHeaterQueue();
 }
+
 void timeFanOff() {
   switchFan(OFF);
   unlockHeaterQueue();
 }
+
 void switchLowOn() {
   digitalWrite(LOW_PIN, HIGH);
   heating_low = true;
   BLYNK_LOG(PSTR("Heating low switched on"));
 }
+
 void switchLowOff() {
   digitalWrite(LOW_PIN, LOW);
   heating_low = false;
   BLYNK_LOG(PSTR("Heating low switched off"));
 }
+
 void timeLowOn() {
   digitalWrite(LOW_PIN, HIGH);
   heating_low = true;
   unlockHeaterQueue();
   BLYNK_LOG(PSTR("Heating low switched on"));
 }
+
 void timeLowOff() {
   digitalWrite(LOW_PIN, LOW);
   heating_low = false;
   unlockHeaterQueue();
   BLYNK_LOG(PSTR("Heating low switched off"));
 }
-void switchHighOn() { digitalWrite(HIGH_PIN, HIGH); unlockHeaterQueue(); }
-void switchHighOff() { digitalWrite(HIGH_PIN, LOW); unlockHeaterQueue(); }
+
+void switchHighOn() {
+  digitalWrite(HIGH_PIN, HIGH);
+  heating_high = true;
+  BLYNK_LOG(PSTR("Heating low switched on"));
+}
+
+void switchHighOff() {
+  digitalWrite(HIGH_PIN, LOW);
+  heating_high = false;
+  BLYNK_LOG(PSTR("Heating low switched on"));
+}
+
+void timeHighOn() {
+  digitalWrite(HIGH_PIN, HIGH);
+  heating_high = true;
+  unlockHeaterQueue();
+  BLYNK_LOG(PSTR("Heating high switched on"));
+}
+
+void timeHighOff() {
+  digitalWrite(HIGH_PIN, LOW);
+  heating_high = false;
+  unlockHeaterQueue();
+  BLYNK_LOG(PSTR("Heating high switched off"));
+}
 
 void lockHeaterQueue() {
   hq_lock = true;
@@ -124,17 +156,27 @@ void processHeaterQueue() {
       uint8_t current_action = heater_queue[0];
   
       switch (current_action) {
-        case QUEUE_LOW:
+        case QUEUE_LOW_ON:
           lockHeaterQueue();
-          switchLow(!heating_low);
+          switchLow(ON);
           break;
-        case QUEUE_HIGH:
+        case QUEUE_LOW_OFF:
           lockHeaterQueue();
-          switchHigh(!heating_high);
+          switchLow(OFF);
+          break;
+        case QUEUE_HIGH_ON:
+          lockHeaterQueue();
+          unlockHeaterQueue();
+//          switchHigh(ON);
+          break;
+        case QUEUE_HIGH_OFF:
+          lockHeaterQueue();
+          unlockHeaterQueue();
+//          switchHigh(OFF);
           break;
         default:
           BLYNK_LOG(PSTR("Heater queue corrupted, clearing it"));
-          memset(heater_queue,0,sizeof(heater_queue));
+          memset(heater_queue, 0, sizeof(heater_queue));
 //          heater_queue[0,1] = { 0 };
           break;
       }
@@ -161,17 +203,34 @@ void switchFan(bool fs) {
 }
 
 void switchLow(bool ls) {
-  if (ls) {  // switch ON
+  if (ls && !heating_low) {  // switch ON
     switchFan(ON);
     timer.setTimeout(10000, timeLowOn);
   }
-  else {  // switch OFF
+  else if (!ls && heating_low) {  // switch OFF
     switchLowOff();
-    timer.setTimeout(40000, timeFanOff);
+    timer.setTimeout(40000L, timeFanOff);
   }
 }
 
-void switchHigh(bool high_state) {
+void switchHigh(bool hs) {
+  if (hs) {  // switch ON
+    if (heating_low && !heating_high) {
+      switchHighOn();
+    }
+  }
+  else {  // switch OFF
+    
+  }
+  if (hs && !heating_high) {  // switch ON
+    switchHighOn();
+  }
+  else if (!hs && heating_high) {  // switch OFF
+    switchHighOff();
+  }
+
+
+
   if (high_state) {
     if (heating_low) {
       digitalWrite(HIGH_PIN, HIGH);
@@ -451,14 +510,14 @@ BLYNK_WRITE(V6) {
 BLYNK_WRITE(V7) {
   if (!thermostate_active)
     // switchLow(param.asInt());
-    addHeaterQueue(QUEUE_LOW);
+    addHeaterQueue(param.asInt() ? QUEUE_LOW_ON : QUEUE_LOW_OFF);
 }
 
 // HIGH switch
 BLYNK_WRITE(V8) {
   if (!thermostate_active)
     // switchHigh(param.asInt());
-    addHeaterQueue(QUEUE_HIGH);
+    addHeaterQueue(param.asInt() ? QUEUE_HIGH_ON : QUEUE_HIGH_OFF);
 }
 
 // THERMOSTATE switch
