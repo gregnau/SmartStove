@@ -167,12 +167,12 @@ void processHeaterQueue() {
         case QUEUE_HIGH_ON:
           lockHeaterQueue();
           unlockHeaterQueue();
-//          switchHigh(ON);
+          switchHigh(ON);
           break;
         case QUEUE_HIGH_OFF:
           lockHeaterQueue();
           unlockHeaterQueue();
-//          switchHigh(OFF);
+          switchHigh(OFF);
           break;
         default:
           BLYNK_LOG(PSTR("Heater queue corrupted, clearing it"));
@@ -203,13 +203,22 @@ void switchFan(bool fs) {
 }
 
 void switchLow(bool ls) {
-  if (ls && !heating_low) {  // switch ON
-    switchFan(ON);
-    timer.setTimeout(10000, timeLowOn);
+  if (ls)  // switch ON
+    if (!heating_low) {
+      switchFan(ON);
+      timer.setTimeout(10000, timeLowOn);
+    }
+    else {
+      unlockHeaterQueue();
   }
-  else if (!ls && heating_low) {  // switch OFF
-    switchLowOff();
-    timer.setTimeout(40000L, timeFanOff);
+  else {  // switch OFF
+    if (heating_low) {
+      switchLowOff();
+      timer.setTimeout(40000L, timeFanOff);
+    }
+    else {
+      unlockHeaterQueue();
+    }
   }
 }
 
@@ -220,32 +229,10 @@ void switchHigh(bool hs) {
     }
   }
   else {  // switch OFF
-    
-  }
-  if (hs && !heating_high) {  // switch ON
-    switchHighOn();
-  }
-  else if (!hs && heating_high) {  // switch OFF
-    switchHighOff();
-  }
-
-
-
-  if (high_state) {
-    if (heating_low) {
-      digitalWrite(HIGH_PIN, HIGH);
-      heating_high = true;
-      BLYNK_LOG(PSTR("Heating high switched on"));
+    if (heating_high) {
+      switchHighOff();
+      timer.setTimeout(10000, unlockHeaterQueue);
     }
-    else {
-      switchLow(ON);
-      timer.setTimeout(15000L, switchHighOn);
-    }
-  }
-  else {
-    digitalWrite(HIGH_PIN, LOW);
-    heating_high = false;
-    BLYNK_LOG(PSTR("Heating high switched off"));
   }
 }
 
