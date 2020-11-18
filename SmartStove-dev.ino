@@ -26,7 +26,6 @@
 #define BTN_PIN     12  // GPIO 12 = D6
 #define FAN_PIN     13  // GPIO 13 = D7
 
-
 // Select Blynk debug output
 #if DEBUG
   #define BLYNK_PRINT Serial
@@ -203,18 +202,23 @@ void switchFan(bool fs) {
 }
 
 void switchLow(bool ls) {
-  if (ls)  // switch ON
+  if (ls) {  // switch ON
     if (!heating_low) {
       switchFan(ON);
       timer.setTimeout(10000, timeLowOn);
     }
     else {
       unlockHeaterQueue();
+    }
   }
   else {  // switch OFF
-    if (heating_low) {
+    if (heating_low && !heating_high) {
       switchLowOff();
       timer.setTimeout(40000L, timeFanOff);
+    }
+    else if (heating_low && heating_high) {
+      switchHighOff();
+      addHeaterQueue(QUEUE_LOW_OFF);
     }
     else {
       unlockHeaterQueue();
@@ -226,6 +230,10 @@ void switchHigh(bool hs) {
   if (hs) {  // switch ON
     if (heating_low && !heating_high) {
       switchHighOn();
+    }
+    else if (!heating_low) {
+      switchLowOn();
+      addHeaterQueue(QUEUE_HIGH_ON);
     }
   }
   else {  // switch OFF
@@ -246,7 +254,7 @@ void switchThermostate(bool thermo_state) {
   }
   else {
     if (heating_low || heating_high) {
-      switchLow(OFF);
+      addHeaterQueue(QUEUE_LOW_OFF);
     }
     BLYNK_LOG(PSTR("Thermostate disabled"));
   }
@@ -257,17 +265,17 @@ void thermostate() {
 
   if (temp_delta >= 13) {
     Blynk.virtualWrite(V8, HIGH);
-    switchHigh(ON);
+    addHeaterQueue(QUEUE_HIGH_ON);
     BLYNK_LOG(PSTR("Thermostate started heating high"));
   }
   else if (temp_delta >= -7) {
     Blynk.virtualWrite(V7, HIGH);
-    switchLow(ON);
+    addHeaterQueue(QUEUE_LOW_ON);
     BLYNK_LOG(PSTR("Thermostate started heating low"));
   }
   else {
     Blynk.virtualWrite(V7, LOW);
-    switchLow(OFF);
+    addHeaterQueue(QUEUE_LOW_OFF);
     BLYNK_LOG(PSTR("Thermostate stopped heating"));
   }
 }
