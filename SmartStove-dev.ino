@@ -1,8 +1,8 @@
-/* SmartStove
+/* SmartStove v2.0 - ESP8266 (Arduino)
  *  powered with Blynk (http://www.blynk.cc)
  * 
  * Electric heater upgrade with WiFi connectivity,
- * temperature/humidity sensing, remote control and
+ * temperature/humidity readings, remote control and
  * thermostate functions.
  * 
  * GregNau © 2016-2020
@@ -77,10 +77,11 @@ bool heating_high = false;
 int16_t humidity = 0;
 int16_t temperature = 0;
 
-bool thermostate_active = false;
+volatile bool thermostate_active = false;
 int16_t thermo_knob_last = 0;
 int16_t thermostate_temp = 0;
 int16_t thermostate_temp_timer = 0;
+uint8_t ext_knob_last = 12;
 
 bool thermotimer_has_start = false;
 bool thermotimer_has_stop = false;
@@ -425,6 +426,21 @@ void readDHT() {
   }
 }
 
+void processButton() {
+  if (digitalRead(BTN_PIN)) switchThermostate(false);
+  else switchThermostate(true);
+}
+
+void knobTimer() {
+  uint16_t ekv = map(analogRead(A0), 0, 1023, 12, 28);
+  
+  if (ekv != ext_knob_last) {
+    ext_knob_last = ekv;
+    Blynk.virtualWrite(V5, ext_knob_last);
+    setThermostateTemp(ext_knob_last * 10);
+  }
+}
+
 void mainTimer() {
   readDHT();
   
@@ -470,13 +486,20 @@ void setup() {
 
   timeClient.begin();
 
+  safetyTimer();
+  timer.setInterval(1000, safetyTimer);
+  BLYNK_LOG(PSTR("Safety algorithm started"));
+
   mainTimer();
   timer.setInterval(60000L, mainTimer);
   BLYNK_LOG(PSTR("Main timer launched"));
 
-  safetyTimer();
-  timer.setInterval(1000, safetyTimer);
-
+  knobTimer();
+  timer.setInterval(2000, knobTimer);
+  BLYNK_LOG(PSTR("Thermostate-knob poll enabled"));
+  
+  attachInterrupt(digitalPinToInterrupt(BTN_PIN), processButton, CHANGE);
+  
   // buttonTimer();
   // timer.setInterval(100, buttonTimer);
   // BLYNK_LOG(PSTR("Button timer launched"));
@@ -608,10 +631,12 @@ void loop() {
   processHeaterQueue();
   
   timer.run();
-
+  
   timeClient.update();
   
   if (WiFi.status() == WL_CONNECTED) {
+    noInterrupts();
     ArduinoOTA.handle();
+    interrupts();
   }
 }
